@@ -1,10 +1,11 @@
-source("C:/GIT/depth_in_FCA/Neuauflage_12_05_2026/R/functions.R", encoding = 'UTF-8')
+#source("C:/GIT/depth_in_FCA/Neuauflage_12_05_2026/R/functions.R", encoding = 'UTF-8')
 
-library(haven)
-setwd("C:/GIT/Datasets/Allbus_2023")
+#library(haven)
+setwd("GIT/contingent_breakdown_point/")
+source("functions.R")
 
 
-dat <- read_sav(here::here("ZA8831_v1-3-0.sav"))
+dat <- haven::read_sav("ZA8831_v1-3-0.sav")
 #Z <- na.omit(data.frame(links_rechts=dat$pa01,income=as.numeric(dat$incc),age=(dat$age),education=dat$iscd11,equality=dat$im28,need=dat$im27,equity=dat$im22,entitlement=dat$im29))
 
 #Z <- na.omit(data.frame(age=dat$age,spirit=dat$rb14))
