@@ -472,7 +472,6 @@ is_in_convex_hull <- function(x, V1, V2, V3) {
 
 get_minimal_generators <- function(context,point_index,exclude_point_index=FALSE){
    model <- oofos:::compute_extent_vc_dimension(context)
-   model$vtype=model$vtype
    m <- nrow(context)
    n <- ncol(context) 
    zero_indexs <- which(context[point_index,]==0)
