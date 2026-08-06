@@ -69,14 +69,14 @@ for(k in seq_len(length(ages))){
   sizes[k] <- length(i)
  print(max(rowMeans(CT)))
   Td[[k]] <-  Tukey_depth(matrix(CT[i,],nrow=length(i)))*length(i)
-  #Tv[[k]] <- Tverberg_depth(CT[i,])$depths
+  Tv[[k]] <- Tverberg_depth(CT[i,])$depths
   #plot(Td[[k]],Tv[[k]])
   
   
   #D <- peeling_depth(CT[i,])
   #D <- list(depths=Tukey_depth(CT[i,]))#
 
-  D <- Tverberg_depth_par(CT[i,])
+  #D <- Tverberg_depth_par(CT[i,])
   
   #temp_tukey <- Tukey_depth(CT[i,])
   j=which(D$depths>=quantile(D$depths,0.8))
