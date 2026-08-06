@@ -74,7 +74,9 @@ for(k in seq_len(length(ages))){
   
   
   #D <- peeling_depth(CT[i,])
-  D <- list(depths=Tukey_depth(CT[i,]))#
+  #D <- list(depths=Tukey_depth(CT[i,]))#
+
+  D <- Tverberg_depth_par(CT[i,])
   
   #temp_tukey <- Tukey_depth(CT[i,])
   j=which(D$depths>=quantile(D$depths,0.8))
