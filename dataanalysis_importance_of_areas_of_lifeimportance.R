@@ -6,52 +6,13 @@ source("functions.R")
 
 
 dat <- haven::read_sav("ZA8831_v1-3-0.sav")
-#Z <- na.omit(data.frame(links_rechts=dat$pa01,income=as.numeric(dat$incc),age=(dat$age),education=dat$iscd11,equality=dat$im28,need=dat$im27,equity=dat$im22,entitlement=dat$im29))
 
-#Z <- na.omit(data.frame(age=dat$age,spirit=dat$rb14))
-
-
-#rb07, rb14, ra06
-#df <- na.omit(data.frame(age=as.numeric(dat$age),income=as.numeric(dat$incc),education=as.numeric(dat$iscd11),religioesitaet=as.numeric(dat$rb07) ,spiritualitaet=as.numeric(dat$rb14)))
-
-
-#wichtigkeit
 df <- na.omit(data.frame(age=as.numeric(dat$age),income=as.numeric(dat$incc),education=as.numeric(dat$iscd11),li01=as.numeric(dat$li01) ,li02=as.numeric(dat$li02),li03=as.numeric(dat$li03),li04=as.numeric(dat$li04),li05=as.numeric(dat$li05),li07=as.numeric(dat$li07),li08=as.numeric(dat$li08),li09=as.numeric(dat$li09),li10=as.numeric(dat$li10)   ))
 
-#Gruende fuer Kirchenaustritt
-#df <- na.omit(data.frame((dat[,c(93,(178:190))])))
-
-#for(k in (4:12)){df[,k] <- df[,k] - mean(df[,k])}
-#library(npreg)
-
-#y=df$li02
-#M <- gsm(y~df$age,spar=0)
-#plot(df$age,y,col="grey")
-#points(df$age,fitted.gsm(M),type="p",col="red")
-
-
 CT <- oofos:::ranking_scaling(df[,-(1:3)],remove.full.columns=FALSE)
-#CT <- oofos:::ranking_scaling(df[,-1],remove.full.columns=FALSE)
-#CT1 <- oofos:::get_auto_conceptual_scaling(df[,-(1:3)])
-
-#CT2 <- NULL
-
-#for(k in (0:7)){
-#CT2 <- cbind(CT2,ranking_scaling(df[,-(1:3)],remove.full.columns = TRUE,threshold=k))
-#}
-
-#CT2 <- t(unique(t(CT2)))
-
-
-#CT <- cbind(CT1,1-CT1,CT2,1-CT2)
 dim(CT)
-#CT <- t(unique(t(CT)))
-#dim(CT)
-#CT <- cbind(CT2,1-CT2)
-
-#CT1 <- oofos:::get_auto_conceptual_scaling(cbind(df$religioesitaet,df$spiritualitaet))
-#CT2 <- ranking_scaling(cbind(df$religioesitaet,df$spiritualitaet),remove.full.columns = FALSE)
-#context <- cbind(CT1,CT2)
+CT <- t(unique(t(CT)))
+dim(CT)
 
 ages <-sort(unique(df$age))
 I <- rep(0,length(ages))
