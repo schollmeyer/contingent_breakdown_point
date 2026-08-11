@@ -16,7 +16,7 @@ Tukey_depth <- function(X){  ### berechnet Levelfunktion fuer begriffliches Quan
     }
     else{depths[k] <- 1}
   }
-  return(depths)}
+  return(list(depths=depths))}
 
 
 ## peeling depth

@@ -2,6 +2,8 @@
 
 #library(haven)
 setwd("GIT/contingent_breakdown_point/")
+
+
 source("functions.R")
 
 
@@ -14,39 +16,44 @@ dim(CT)
 CT <- t(unique(t(CT)))
 dim(CT)
 
+
+alpha <- .95
 ages <-sort(unique(df$age))
 I <- rep(0,length(ages))
 TT <- sizes <- cbp <- II <- I
+
 condmed <- condmed1 <- condmed2 <- condmed3 <- condmed4 <- condmed5 <- condmed7 <- condmed8 <-condmed9 <- condmed10 <-I
 L <- U <- I
-condmean1 <- condmean2 <- condmean3 <- condmean4 <- condmean5 <- condmean7 <- condmean8 <- condmean9 <- condmean10 <- condmed1
+condmean <- condmean1 <- condmean2 <- condmean3 <- condmean4 <- condmean5 <- condmean7 <- condmean8 <- condmean9 <- condmean10 <- condmed1
 
-sortages <- sort(df$age)
-Td <- Tv <- list()
+
+Tp <- Td <- Tv <- list()
 for(k in seq_len(length(ages))){
  for( t in (1:100)){
   i=which(  abs(df$age-ages[k])<=t)
-  if(length(i)>15){break}
+  if(length(i)>300){break}
 }
-  print(k)
+  
   
   sizes[k] <- length(i)
- print(max(rowMeans(CT)))
-  Td[[k]] <-  Tukey_depth(matrix(CT[i,],nrow=length(i)))*length(i)
-  Tv[[k]] <- Tverberg_depth(CT[i,])$depths
+  #print(max(rowMeans(CT)))
+  Td[[k]] <- Tukey_depth(CT[i,])$depths*length(i)
+  #Tv[[k]] <- Tverberg_depth_par(CT[i,])$depths
+  Tp[[k]] <- peeling_depth(CT[i,])
   #plot(Td[[k]],Tv[[k]])
   
   
   #D <- peeling_depth(CT[i,])
-  #D <- list(depths=Tukey_depth(CT[i,]))#
+  D <- Tp[[k]]#Tukey_depth(CT[i,])
 
   #D <- Tverberg_depth_par(CT[i,])
   
   #temp_tukey <- Tukey_depth(CT[i,])
-  j=which(D$depths>=quantile(D$depths,0.8))
+  j=which(D$depths>=quantile(D$depths,alpha))
   
   #TT[k] <- max(temp_tukey[j])
-  condmed[k] <- mean(df$li02[i])
+  condmean[k] <- mean(df$li02[i])
+  condmed[k] <- median(df$li02[i])
 
   i <- i[j]
   
@@ -85,13 +92,18 @@ for(k in seq_len(length(ages))){
   #D=DepthProc::depthTukey(as.matrix(df[i,-(1:3)]),as.matrix(df[i,-(1:3)]));j=which.max(D);I[k]=i[j]
  # D <-  Tukeys_depth(matrix(CT[i,],nrow=length(i)));
   #D=peeling_depth(CT[i,]);j=which.max(D);II[k]=i[j]
-  j=which(D$depths>=quantile(D$depths,0.85))
-  L[k] <- mean(df$li09[i[j]])
-  U[k] <- max(df$li09[i[j]])
+  #j=which(D$depths>=quantile(D$depths,0.95))
+  L[k] <- quantile(df$li02[i],0.1)
+  U[k] <- quantile(df$li02[i],0.9)
 
-
+print(k)
 }
 
+
+plot(ages,condmean2,type="l",ylim=c(1,7))
+lines(ages,L,col="darkred")
+lines(ages,U,col="#1b1bd1")
+lines(ages,condmean,col="grey")
 #plot(df$age,df$li07,col="grey")
 #lines(ages,condmean1)
 #lines(ages,condmean2)
