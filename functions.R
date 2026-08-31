@@ -43,7 +43,7 @@ peeled_nu_min=function(E,context,K=1,VC=Inf){
 }
 return(i)}
 
-## Peeling depth
+## peeling depth
 
 peeling_depth <- function(context,peeling_operator=nu_min,...){
   m <- dim(context)[1]
@@ -69,6 +69,72 @@ peeling_depth <- function(context,peeling_operator=nu_min,...){
   ######
 
 
+### enclosing depth
+
+compute_enclosing <- function(context,point_indexs){
+   model <- oofos:::compute_extent_vc_dimension(context)
+   model$vtype=model$vtypes
+   m <- nrow(context)
+   n <- ncol(context) 
+   #if(class(point_indexs)=="numeric"){point_indexs=matrix(point_indexs,nrow=1)}
+   if(length(point_indexs)==1) {zero_indexs=which(context[point_indexs,]==0)}
+   else{zero_indexs <- which(colSums(context[point_indexs,]) < length(point_indexs))}
+   if(length(zero_indexs)==0){print("arghh");return(NULL)} 
+   model$ub <- c(rep(1,m),rep(0,n))
+   model$ub[m+ zero_indexs] <- 1
+   model$ub[point_indexs] <- 0
+   for(k in zero_indexs){
+     i <- which(context[,k]==0)
+     if(length(i)==0){prinT("GGGG")}
+     temp <- rep(0,m+n)
+     temp[i] <- 1
+     model$A <- rbind(model$A, matrix(temp,nrow=1))
+     model$rhs <- c(model$rhs,1)
+     model$sense <- c(model$sense,">=")
+   }
+   model$obj <- NULL
+   result <- gurobi::gurobi(model,list(PoolSearchMode=2,PoolSolutions=100000000,outputflag=1))
+   print(result$status)
+   if(result$status=="OPTIMAL")  {
+    m <- nrow(context)
+    n <- ncol(context)
+    N <- length(result$pool)
+    mat2 <- mat <- array(0,c(N,m)) 
+    for(k in (1:N)){
+      mat[k,] <- round((result$pool[[k]])$poolnx[(1:m)],2)
+    }
+
+    for(k in (1:N)){
+      mat2[k,] <- oofos:::compute_phi(oofos:::compute_psi(mat[k,],context),context)
+    }
+     
+     rowsums <- rowSums(mat2)
+     i <- which.min(rowsums)
+     return(list(mat=mat,model=model,result=result,extent=mat[i,]))
+   }
+   
+   else(return(list(result=result)))}
+
+enclosing_depth <- function(context,startindex){
+  depths <- rep(0,nrow(context))
+  e <- rep(0,nrow(context))
+  e[startindex] <- 1
+  depths[startindex] <- 0
+  t <- 2
+  for(k in seq_len(nrow(context))){
+    temp <- compute_enclosing(context,which(e==1))
+    if(temp$result$status!="OPTIMAL"){return(depths)}
+    depths[which(temp$extent==1)] <- t 
+    e[which(depths!=0)] <- 1
+    t <- t+1 
+
+
+
+
+  }}
+  
+
+### Tverberg depth
 ## Tverberg depth in R^2
 
 
@@ -497,7 +563,7 @@ get_minimal_generators <- function(context,point_index,exclude_point_index=FALSE
  #point_index <- 4
  
  model <- get_minimal_generators(context,point_index)
- result <- gurobi::gurobi(model,list(PoolSearchMode=2,PoolSolutions=100000000,NumericFocus=3))
+ result <- gurobi::gurobi(model,list(PoolSearchMode=2,PoolSolutions=10000000,NumericFocus=3))
  
  if(result$status=="OPTIMAL")
  

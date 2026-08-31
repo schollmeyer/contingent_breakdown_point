@@ -11,6 +11,9 @@ dat <- haven::read_sav("ZA8831_v1-3-0.sav")
 
 df <- na.omit(data.frame(age=as.numeric(dat$age),income=as.numeric(dat$incc),education=as.numeric(dat$iscd11),li01=as.numeric(dat$li01) ,li02=as.numeric(dat$li02),li03=as.numeric(dat$li03),li04=as.numeric(dat$li04),li05=as.numeric(dat$li05),li07=as.numeric(dat$li07),li08=as.numeric(dat$li08),li09=as.numeric(dat$li09),li10=as.numeric(dat$li10)   ))
 
+bw <- np::npregbw(formula=li02~age,data=df,regtype="lc",ckertype="uniform",okernel=2)
+print(bw$bw)
+
 CT <- oofos:::ranking_scaling(df[,-(1:3)],remove.full.columns=FALSE)
 dim(CT)
 CT <- t(unique(t(CT)))
@@ -23,15 +26,17 @@ I <- rep(0,length(ages))
 TT <- sizes <- cbp <- II <- I
 
 condmed <- condmed1 <- condmed2 <- condmed3 <- condmed4 <- condmed5 <- condmed7 <- condmed8 <-condmed9 <- condmed10 <-I
+
 L <- U <- I
-condmean <- condmean1 <- condmean2 <- condmean3 <- condmean4 <- condmean5 <- condmean7 <- condmean8 <- condmean9 <- condmean10 <- condmed1
+cbp_univariate <- condmean <- condmean1 <- condmean2 <- condmean3 <- condmean4 <- condmean5 <- condmean7 <- condmean8 <- condmean9 <- condmean10 <- condmed1
 
 
 Tp <- Td <- Tv <- list()
 for(k in seq_len(length(ages))){
  for( t in (1:100)){
   i=which(  abs(df$age-ages[k])<=t)
-  if(length(i)>300){break}
+  #break
+  if(length(i)>5){print(max(df$age[i])-min(df$age[i]));break}
 }
   
   
@@ -53,7 +58,8 @@ for(k in seq_len(length(ages))){
   
   #TT[k] <- max(temp_tukey[j])
   condmean[k] <- mean(df$li02[i])
-  condmed[k] <- median(df$li02[i])
+  condmed[k] <- median(df$li02[i]) 
+  cbp_univariate[k] <- min(mean(df$li02[i] <= condmean[k]) , mean(df$li02[i] >= condmean[k]))
 
   i <- i[j]
   
@@ -99,7 +105,104 @@ for(k in seq_len(length(ages))){
 print(k)
 }
 
+#univariate analysis for li02 
+plot(ages,condmean,type="l",ylim=c(0.01,7))
+lines(ages,condmed,col="grey")
+lines(ages,cbp_univariate,col="blue")
+points(df$age,df$li02,col="grey")
+abline(h=0.5,lty=2,col="grey")
+df_univariate <- data.frame(age=ages,conditional_mean=condmean,conditional_median=condmed,contingent_breakdown_point=cbp_univariate,occupation_and_work= df$li02)
 
+
+### ggplot2:
+
+library(ggplot2)
+
+df_univariate <- data.frame(
+  age = ages,
+  conditional_mean = condmean,
+  conditional_median = condmed,
+  contingent_breakdown_point = cbp_univariate
+ #, occupation_and_wor = df$li02
+)
+
+ggplot(df_univariate, aes(x = age)) +
+  
+  # Beobachtungen
+  geom_point(
+    aes(x=df$ages, y = occupation_and_work),
+    color = "grey50",
+    alpha = 0.35,
+    size = 1.8
+  ) +
+  
+  # Conditional mean
+  geom_line(
+    aes(y = conditional_mean, color = "Conditional mean"),
+    linewidth = 1.1
+  ) +
+  
+  # Conditional median
+  geom_line(
+    aes(y = conditional_median, color = "Conditional median"),
+    linewidth = 1.0,
+    linetype = "dashed"
+  ) +
+  
+  # Contingent breakdown point
+  geom_line(
+    aes(y = contingent_breakdown_point, color = "Contingent breakdown point"),
+    linewidth = 1.1
+  ) +
+  
+  # Horizontale Referenzlinie
+  geom_hline(
+    yintercept = 0.5,
+    linetype = "dotted",
+    color = "grey50",
+    linewidth = 0.8
+  ) +
+  
+  # Farben
+  scale_color_manual(
+    values = c(
+      "Conditional mean" = "#D55E00",
+      "Conditional median" = "#0072B2",
+      "Contingent breakdown point" = "#009E73"
+    )
+  ) +
+  
+  # Achsen
+  scale_y_continuous(
+    limits = c(0.01, 7),
+    expand = expansion(mult = c(0, 0.02))
+  ) +
+  
+  scale_x_continuous(
+    expand = expansion(mult = c(0.01, 0.01))
+  ) +
+  
+  # Beschriftungen
+  labs(
+    x = "Age",
+    y = "Value",
+    color = NULL
+  ) +
+  
+  # Theme
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position = "top",
+    legend.justification = "left",
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "grey20"),
+    legend.text = element_text(size = 11),
+    plot.margin = margin(10, 15, 10, 10)
+  )
+
+  ######
 plot(ages,condmean2,type="l",ylim=c(1,7))
 lines(ages,L,col="darkred")
 lines(ages,U,col="#1b1bd1")
