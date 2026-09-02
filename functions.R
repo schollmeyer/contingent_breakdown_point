@@ -557,19 +557,20 @@ get_minimal_generators <- function(context,point_index,exclude_point_index=FALSE
  
  return(model)}
 
- Tverberg_depth <- function(context){
+ Tverberg_depth <- function(context,maximal_number_generators=100000){
  depths <- rep(0,nrow(context))
  for(point_index in seq_len(nrow(context))){
  #point_index <- 4
  
  model <- get_minimal_generators(context,point_index)
- result <- gurobi::gurobi(model,list(PoolSearchMode=2,PoolSolutions=10000000,NumericFocus=3))
+ result <- gurobi::gurobi(model,list(PoolSearchMode=2,PoolSolutions=maximal_number_generators,NumericFocus=3))
  
  if(result$status=="OPTIMAL")
  
  {m <- nrow(context)
  n <- ncol(context)
  N <- length(result$pool)
+ if(N==maximal_number_generators){warning(c("Warning: not all generators computed for data point number",point_index))}
  mat <- array(0,c(N,m)) 
  for(k in (1:N)){
     mat[k,] <- (result$pool[[k]])$poolnx[(1:m)]
