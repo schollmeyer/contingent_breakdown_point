@@ -220,7 +220,7 @@ Tverberg_depth_basic_model3d <- function(X){
 
 return(list(indexs=indexs,A=Matrix::Matrix(0, nrow = 0, ncol = N, sparse = TRUE),obj=obj,sos=sos,lb=rep(0,N),ub=rep(1,N),vtype=rep("B",N),modelsense="max"))}
 
-update_Tverberg_depth_model3d <- function(model,X,point_index){
+update_Tverberg_depth_model3d <- function(model,X,point_index,exclude_point_index=FALSE){
   n <- nrow(X)
   N <- choose(n,4)
   new_model <- model
@@ -232,7 +232,7 @@ update_Tverberg_depth_model3d <- function(model,X,point_index){
       for(o in seq(m+1,n)){
         #chull_indexs <- unique(as.vector(geometry::convhulln(X[c(point_index,k,l,m,o),])))
 	      if( (point_index %in% c(k,l,m,o)) | ( is_in_tetrahedron(X[point_index,], X[k,],X[l,],X[m,],X[o,]))){new_model$obj[t] <- 1}
-		    #if(point_index %in% c(k,l,m,o)){new_model$ub[t] <- 0}
+		    if(exclude_point_index & point_index %in% c(k,l,m,o)){new_model$ub[t] <- 0}
 		 t <- t+1
       }
 		 }}}
@@ -318,7 +318,9 @@ is_in_tetrahedron <- function(x, V1, V2, V3, V4) {
   
   # If a valid solution exists, check that all coordinates are >= 0
   # A small tolerance (e.g., -1e-9) handles floating-point precision errors
-  if (!is.null(alpha) && all(alpha >= -1e-9)) {
+  #print(alpha)
+  #alpha <<- alpha
+  if (!is.null(alpha) && all(alpha >= 0)) {
     return(TRUE)
   } else {
     return(FALSE)
