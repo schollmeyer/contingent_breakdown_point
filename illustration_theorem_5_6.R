@@ -30,9 +30,10 @@ for(k in (1:n)){
 
 
 #illustration of theorem 5.6. for d=3
+set.seed(1234567)
 while(TRUE){
-d <- 3
-n <- 60
+d <- 4
+n <- 90
 alpha <- 1/2
 K <- floor(alpha*n)
 
@@ -50,13 +51,13 @@ X <- rbind(unitsphere1,unitsphere2)
 #X <- rbind(test_point,X)
 #n <- nrow(X)
 T <-  ddalpha::depth.halfspace(rep(0,d),X,exact=TRUE)*n
-if(T>=K/2-1){break}
+if(T>=K/2-5){break}
 }
 
 n_rep=10000
 T <- Tv <- rep(0,n_rep)
 X <- rbind(0,unitsphere1,unitsphere2)
-basic_model <- Tverberg_depth_basic_model3d(X)
+basic_model <- Tverberg_depth_basic_model4d(X)
 
 for(k in (1:n_rep)){
     
@@ -66,7 +67,7 @@ alpha <-  runif(nrow(X));alpha[1] <- 1000*abs(rcauchy(1))*alpha[1]; alpha <- alp
 test_point <-alpha%*%X	
 X[1,] <- test_point +rnorm(d,sd=sample(c(0.1,0.25,0.05),size=1))
 if(k==1){X[1,] <- 0}
-  model <- update_Tverberg_depth_model3d(basic_model,X,1,exclude_point_index=TRUE)
+  model <- update_Tverberg_depth_model4d(basic_model,X,1,exclude_point_index=TRUE)
   temp <-gurobi::gurobi(model)
   Tv[k] <- temp$objval
   T[k] <- ddalpha::depth.halfspace(X[1,],X[-1,],exact=TRUE)*n
@@ -76,6 +77,34 @@ if(k==1){X[1,] <- 0}
   
   plot(T,Tv)
 
+
+
+#plotting
+
+# 1. Load the ggplot2 library
+library(ggplot2)
+
+# 2. Create a sample data frame
+depths <- t(unique(cbind(T,Tv)))
+ 
+df <- data.frame(Tukey_depth=depths[1,],Tverberg_depth=depths[2,])
+ 
+
+
+# 3. Generate the scatter plot with custom axis text
+ggplot(df, aes(x = Tukey_depth, y = Tverberg_depth)) +
+  geom_point(size = 3, color = "blue") + # Draws the points
+  
+  # Gitterlinien für X auf Abstand 1 setzen
+  #scale_x_continuous(breaks = scales::breaks_width(1)) +
+  # Gitterlinien für Y auf Abstand 1 setzen
+  #scale_y_continuous(breaks = scales::breaks_width(1)) + 
+  labs(
+    x = "Tukey depth",     # Custom X-axis label
+    y = "Tverberg depth",     # Custom Y-axis label
+  )
+#  title = "Main Plot Title (Optional)" # Optional title
+ # )
 
 
 n <- 60

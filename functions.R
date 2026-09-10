@@ -274,7 +274,7 @@ Tverberg_depth_basic_model4d <- function(X){
 
 return(list(indexs=indexs,A=Matrix::Matrix(0, nrow = 0, ncol = N, sparse = TRUE),obj=obj,sos=sos,lb=rep(0,N),ub=rep(1,N),vtype=rep("B",N),modelsense="max"))}
 
-update_Tverberg_depth_model4d <- function(model,X,point_index){
+update_Tverberg_depth_model4d <- function(model,X,point_index,exclude_point_index=FALSE){
   n <- nrow(X)
   N <- choose(n,5)
   new_model <- model
@@ -290,7 +290,7 @@ update_Tverberg_depth_model4d <- function(model,X,point_index){
         #chull_indexs <- unique(as.vector(geometry::convhulln(X[c(point_index,k,l,m,o),])))
 	      if( (point_index %in% c(k,l,m,o)) | ( is_in_pentachoron(X[point_index,], X[k,],X[l,],X[m,],X[o,],X[p,]))){new_model$obj[t] <- 1}
         #if( (point_index %in% c(k,l,m,o)) | ( is_point_in_hull_5pt_exact(X[point_index,], rbind(X[k,],X[l,],X[m,],X[o,],X[p,])))){new_model$obj[t] <- 1}
-		    #if(point_index %in% c(k,l,m,o)){new_model$ub[t] <- 0}
+		    if(exlcude_point_index & point_index %in% c(k,l,m,o)){new_model$ub[t] <- 0}
 		 t <- t+1
          }}
 		 }}}
