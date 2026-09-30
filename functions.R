@@ -3,20 +3,20 @@
 ### Tukey depth
 
 
-Tukey_depth <- function(X){  ### berechnet Levelfunktion fuer begriffliches Quantilkonzept
-  n=dim(X)[1]
+Tukey_depth <- function(context){  ### berechnet Levelfunktion fuer begriffliches Quantilkonzept
+  n=dim(context)[1]
   
-  colmeans <- colMeans(X)
+  colmeans <- colMeans(context)
   
   depths <- rep(0,n)
   for(k in (1:n)){
-    indexs <- which(X[k,]==0)
+    indexs <- which(context[k,]==0)
     if(length(indexs)>=1){
       depths[k] <- 1-max(colmeans[indexs])
     }
     else{depths[k] <- 1}
   }
-  return(list(depths=depths))}
+  return(list(rel_depths=depths,abs_depths=depths*nrow(context),n=nrow(context)))}
 
 
 ## peeling depth
@@ -85,7 +85,7 @@ compute_enclosing <- function(context,point_indexs){
    model$ub[point_indexs] <- 0
    for(k in zero_indexs){
      i <- which(context[,k]==0)
-     if(length(i)==0){prinT("GGGG")}
+     if(length(i)==0){print("GGGG")}
      temp <- rep(0,m+n)
      temp[i] <- 1
      model$A <- rbind(model$A, matrix(temp,nrow=1))
@@ -559,13 +559,17 @@ get_minimal_generators <- function(context,point_index,exclude_point_index=FALSE
  
  return(model)}
 
- Tverberg_depth <- function(context,maximal_number_generators=100000){
+ Tverberg_depth <- function(context,maximal_number_generators=100000,compute_depths=TRUE){
  depths <- rep(0,nrow(context))
+ ufg_premises <- list()
+ ufg_cardinalities <- list()
+ partitions <- list()
+ ufg_dimension <- 0
  for(point_index in seq_len(nrow(context))){
  #point_index <- 4
  
  model <- get_minimal_generators(context,point_index)
- result <- gurobi::gurobi(model,list(PoolSearchMode=2,PoolSolutions=maximal_number_generators,NumericFocus=3))
+ result <- gurobi::gurobi(model,list(PoolSearchMode=2,PoolSolutions=maximal_number_generators,NumericFocus=3,outputflag=0))
  
  if(result$status=="OPTIMAL")
  
@@ -577,7 +581,9 @@ get_minimal_generators <- function(context,point_index,exclude_point_index=FALSE
  for(k in (1:N)){
     mat[k,] <- (result$pool[[k]])$poolnx[(1:m)]
   }
-
+  ufg_premises[[point_index]] <- mat
+  ufg_dimension <- max(c(ufg_dimension,rowSums(mat)))
+  ufg_cardinalities[[point_index]] <- rowSums(mat)
 sos <- list()
 t <- 1
 for(k in (1:m)){
@@ -590,10 +596,19 @@ for(k in (1:m)){
 }
 model <- list(A=Matrix::Matrix(0, nrow = 0, ncol = N, sparse = TRUE),obj=rep(1,N),sos=sos,lb=rep(0,N),ub=rep(1,N),vtype=rep("B",N),modelsense="max")
 
-depths[point_index] <- gurobi::gurobi(model,params=list(NumericFocus=3))$objval
+if(compute_depths){
+  temp <- gurobi::gurobi(model,params=list(NumericFocus=3,outputflag=0))
+  depths[point_index] <- temp$objval
+  temp_partition <- list()
+  tt <- 1
+  for(l in which(temp$x >0.5)){
+    temp_partition[[tt]]<- which(mat[l,]>0.5)
+    tt <- tt+1
+  }
+  partitions[[point_index]] <- temp_partition
 }
-}
-return(list(depths=depths))}
+}}
+return(list(depths=depths,ufg_dimension=ufg_dimension,ufg_premises=ufg_premises,ufg_cardinalities=ufg_cardinalities,partitions=partitions))}
 
 
 ## parallelized version for Tverberg depth:
@@ -674,4 +689,628 @@ Tverberg_depth_par <- function(context, workers = future::availableCores()) {
   )
 
   list(depths = depths)
+}
+
+
+is_one_cone <- function(attribute,object,context){
+  n <- nrow(context)
+  m <- ncol(context)
+  if(context[object,attribute]==1){return(FALSE)}
+  for(k in seq_len(m)[-attribute]){
+    if(all(context[,k] >= context[,attribute]) & context[object,k]==0 & any(context[,k] > context[,attribute]) ){return(FALSE)}
+     
+  }
+return(TRUE)}
+
+context_is_C_0 <- function(context){
+temp <- Tverberg_depth(context,compute_depths=FALSE)
+for(k in seq_len(nrow(context))){
+  for(l in seq_len(ncol(context))){
+    mat <- temp$ufg_premises[[k]]
+     for(i in seq_len(nrow(mat))){
+     if(sum(mat[i,])==temp$ufg_dimension & mat[i,k]==0 & is_one_cone_fast(l,k,context) & all(pmin(context[,l], mat[i,])==0)){
+      print(which(mat[i,]==1))
+      print(k)
+      print(l)
+     
+      return(FALSE)}
+
+  }}}
+return(TRUE)
+}
+
+context_is_C_1 <- function(context){
+temp <- Tverberg_depth(context,compute_depths=FALSE)
+for(k in seq_len(nrow(context))){
+  for(l in seq_len(ncol(context))){
+    mat <- temp$ufg_premises[[k]]
+     for(i in seq_len(nrow(mat))){
+     if(sum(mat[i,]) >1 & mat[i,k]==0 & is_one_cone_fast(l,k,context) & all(pmin(context[,l], mat[i,])==0)){
+      print(which(mat[i,]==1))
+      print(k)
+      print(l)
+     
+      return(FALSE)}
+
+  }}}
+return(TRUE)
+}
+
+is_one_cone_fast <- function(attribute, object, context) {
+  # 1. Vorab-Check (wie im Original)
+  if (context[object, attribute] == 1) return(FALSE)
+  
+  # 2. Spalten-Vergleiche vektorisiert durchführen
+  # Überprüft für alle Spalten gleichzeitig, ob alle Zeilen >= der Zielspalte sind
+  col_min_diff <- colSums(context < context[, attribute]) == 0
+  
+  # Überprüft, ob das Objekt in der Spalte k den Wert 0 hat
+  obj_is_zero <- context[object, ] == 0
+  
+  # Überprüft, ob mindestens ein Element echt größer ist (Spaltensumme ist größer)
+  col_sum_greater <- colSums(context) > sum(context[, attribute])
+  
+  # 3. Bedingungen kombinieren (Spalte 'attribute' wird durch 'col_sum_greater' automatisch ausgeschlossen)
+  any_match <- any(col_min_diff & obj_is_zero & col_sum_greater)
+  
+  return(!any_match)
+}
+
+
+
+# 3,3: cg: TRUE
+build_context_K_3 <- function(K){
+  context <- NULL
+  u <- 3
+  contranominal_scale <- 1-diag(rep(1,u))
+  zero_matrix <- array(0,c(u,u))
+  zero_matrix[1,] <- 1
+  for(k in seq_len(K)){
+    temp <- NULL
+    for(l in seq_len(K)){
+      if(k==l){ temp <- cbind(temp,contranominal_scale)}
+	  else{temp <- cbind(temp,zero_matrix) }
+	}
+  context <- rbind(context,temp)
+	}
+	context <- rbind(context,0)
+return(context)}
+
+build_context_K_4 <- function(K){
+  context <- NULL
+  u <- 4
+  contranominal_scale <- 1-diag(rep(1,u))
+  zero_matrix <- array(0,c(u,u))
+  zero_matrix[1,] <- 1
+  for(k in seq_len(K)){
+    temp <- NULL
+    for(l in seq_len(K)){
+      if(k==l){ temp <- cbind(temp,contranominal_scale)}
+	  else{temp <- cbind(temp,zero_matrix) }
+	}
+  context <- rbind(context,temp)
+	}
+	context <- rbind(context,0)
+return(context)}
+
+
+# 3,3: cg: FALSE
+build_context1 <- function(u,K,complemented=TRUE){
+  context <- NULL
+  contranominal_scale <- 1-diag(rep(1,u))
+  #contranominal_scale <- cbind(contranominal_scale,c(0,rep(1,nrow(contranominal_scale)-1)))
+  #Y <- cbind(Y,1)
+  zero_matrix <- array(0,c(u,u))
+  zero_matrix[1,] <- 1
+  #zero_matrix <- cbind(zero_matrix,0)
+  #Z <- cbind(Z,0)
+  #Z[1,] <- 1
+  for(k in seq_len(K)){
+    temp <- NULL
+    for(l in seq_len(K)){
+      if(k==l){ temp <- cbind(temp,contranominal_scale)}
+	  else{temp <- cbind(temp,zero_matrix) }
+	}
+  #temp <- rbind(temp[1,],temp[-1,],temp[-1,],temp[-1,],temp)
+	context <- rbind(context,temp)
+	}
+	if(FALSE){
+	for(k in seq_len(K)){
+	for(l in seq_len(K)[-k]){
+    #for(i in seq_len(K)[-c(k,l)]){
+	temp <- rep(0,u*K)
+	temp[seq((k-1)*u+1, k*u)] <- 1
+	temp[seq((l-1)*u+1, l*u)] <- 1
+  #temp[seq((i-1)*u+1, i*u)] <- 1
+  context <- cbind(context,temp)}}#}
+	#X <- cbind(X,temp)}}
+	}
+	context <- rbind(context,0)
+	#context <- cbind(context,rbind(1-diag(rep(1,nrow(context)-1)),1))
+  if(complemented){context <- cbind(context,1-context)}
+return(context)}
+
+
+exclude_two_premises <- function(n=24){
+  indexs <- seq_len(n)
+  indexs <- indexs[-c(1,5,9,13)]
+  context <- NULL
+  for(k in indexs){
+    for(l in indexs){
+      if(k < l){
+      temp <- rep(0,n);temp[c(k,l)] <- 1
+      temp[c(1,5,9,13)] <-1
+      context <- cbind (context,temp)
+      }
+    }
+
+  }
+  return(context)
+}
+
+exclude_2_premises <- function(){
+  indexs1 <- 1:4
+  indexs2 <- 5:8
+  indexs3 <- 9:12
+  indexs4 <- 13:16
+   context <- NULL
+  
+  for(k in indexs1){
+    for(l in indexs2){
+      for(i in indexs3){
+        for(j in indexs4){
+         temp <- rep(0,16);temp[c(k,l,i,j)] <- 1
+         context <- cbind (context,temp)
+        }}}}
+      
+      
+      
+      #temp[c(1,5,9,13)] <-1
+      
+      
+
+  
+  return(rbind(context,0))
+}
+
+exclude_three_premises <- function(n=20){
+  indexs <- seq_len(n)
+  indexs <- indexs[-c(1,5,9,13,17)]
+  context <- NULL
+  for(k in indexs){
+    for(l in indexs){
+      for(i in indexs){
+      if(k < l & l < i){
+      if(!(all(c(k,l,i) %in% c(1,2,3,4) | all(c(k,l,i) %in% c(5,6,7,8)|all(c(k,l,i) %in% c(9,10,11,12)) |all(c(k,l,i) %in% c(13,14,15,16)))))){
+      temp <- rep(0,n);temp[c(k,l,i)] <- 1
+      temp[c(1,5,9,13,17)] <-1
+      context <- cbind (context,temp)}
+      }
+    }
+    }
+  }
+  return(context)
+}
+
+exclude_four_premises <- function(n=16){
+  indexs <- seq_len(n)
+  indexs <- indexs[-c(1,5,9,13)]
+  indexs1 <- (2:4)
+  indexs2 <- (6:8)
+  indexs3 <- (10:12)
+  indexs4 <- (14:16)
+  context <- NULL
+  for(k in indexs){
+    for(l in indexs){
+      for(i in indexs){
+      for(j in indexs){
+      if(k < l & l < i & i <j){
+      if(!(all(c(k,l,i,j) %in% c(1,2,3,4) | all(c(k,l,i,j) %in% c(5,6,7,8)|all(c(k,l,i,j) %in% c(9,10,11,12)) |all(c(k,l,i,j) %in% c(13,14,15,16)))))){
+      temp <- rep(0,n);temp[c(k,l,i,j)] <- 1
+      #temp[c(1,5,9,13)] <-1
+      context <- cbind (context,temp)}
+      }}
+    }
+    }
+  }
+  return(context)
+}
+
+
+test2 <- function(){
+  context <- NULL
+  for(k in (1:4)){
+    for(l in (5:8)){
+      for(i in (9:12)){
+        temp <- rep(0,12)
+        temp[c(k,l,i)] <- 1
+        context <- cbind (context,temp)
+      }
+    }
+  }
+return(rbind(context,0))
+}
+
+test3 <- function(){
+  context <- NULL
+  for(k in seq_len(10)){
+    for(l in seq(k+1,11)){
+      for(i in seq(l+1,12)){
+        if(!(all(c(k,l,i) %in% c(1,2,3,4) | all(c(k,l,i) %in% c(5,6,7,8)|all(c(k,l,i) %in% c(9,10,11,12)))))){
+        temp <- rep(0,12)
+        temp[c(k,l,i)] <- 1
+        context <- cbind (context,temp)}
+      }
+    }
+  }
+return(rbind(context,0))
+}
+
+test4 <- function(){
+  context <- NULL
+  for(k in seq_len(9)){
+    for(l in seq(k+1,10)){
+      for(i in seq(l+1,11)){
+        for(j in seq(i+1,12)){
+        if(!(all(c(k,l,i,j) %in% c(1,2,3,4) | all(c(k,l,i,j) %in% c(5,6,7,8)|all(c(k,l,i,j) %in% c(9,10,11,12)))))){
+        temp <- rep(0,12)
+        temp[c(k,l,i,j)] <- 1
+        context <- cbind (context,temp)}
+        }
+      }
+    }
+  }
+return(rbind(context,0))
+}
+#
+# context of all k-element sets of an n-1 universe G={g_1,\ldots, g_n-1} added with g* \notin G
+# Then all non-trivial implication g^* cup A \to g_i deleted
+# Then complemented  
+#properties: meet-distributive, complemented, generally not cg
+# ufg dimension u
+special_context <- function(u,n,complemented=TRUE){
+  if(u>=n){print("n too small");return(NULL)}
+  context <- (generate_indicator_gtools(n-1,u-1))
+  
+  #X <- t(gtools::permutations(2,n-1,repeats.allowed=TRUE)-1)
+  #idxs <- which(colSums(X)==k-1)
+  #context <- X[,idxs]
+  context <- rbind(context,0)
+  context <- cbind(context,rbind(1-diag(rep(1,nrow(context)-1)),1))
+  if(complemented){context <- cbind(context,1-context)}
+return(context)}
+
+library(gtools)
+
+generate_indicator_gtools <- function(n, k) {
+  if (k > n || k < 0) stop("Invalid k")
+  
+  # 1. Enumerate index combinations using gtools
+  # This returns a matrix with choose(n, k) rows and k columns
+  idx_matrix <- gtools::combinations(n, k)
+  num_subsets <- nrow(idx_matrix)
+  
+  # 2. Pre-allocate an empty matrix (rows = elements, cols = subsets)
+  indicator_matrix <- matrix(0, nrow = n, ncol = num_subsets)
+  
+  # 3. Vectorized mapping using 2D matrix coordinates [row, column]
+  # Each subset represents a column. We repeat the column index 'k' times.
+  col_indices <- rep(1:num_subsets, each = k)
+  row_indices <- as.vector(t(idx_matrix)) # Transpose first to align elements properly
+  
+  indicator_matrix[cbind(row_indices, col_indices)] <- 1
+  
+  return(indicator_matrix)
+}
+
+
+
+
+build_context2 <- function(u,K){
+  context <- NULL
+  contranominal_scale <- 1-diag(rep(1,u))
+  #Y <- cbind(Y,1)
+  zero_matrix <- array(0,c(u,u))
+  #Z <- cbind(Z,0)
+  zero_matrix[1,] <- 1
+  for(k in seq_len(K)){
+    temp <- NULL
+    for(l in seq_len(K)){
+      if(k==l){ temp <- cbind(temp,contranominal_scale)}
+	  else{temp <- cbind(temp,zero_matrix) }
+	}
+	context <- rbind(context,temp)
+	}
+	#if(FALSE){
+	#for(k in seq_len(K)){
+	#for(l in seq_len(K)[-k]){
+	#temp <- rep(0,u*K)
+	#temp[seq((k-1)*u+1, k*u)] <- 1
+	#temp[seq((l-1)*u+1, l*u)] <- 1
+	#X <- cbind(X,temp)}}
+	#}
+	context <- rbind(context,0)
+	context <- cbind(context,rbind(1-diag(rep(1,nrow(context)-1)),1))
+return(cbind(context,1-context))}
+
+test <- function(u,K){
+  context <- NULL
+  contranominal_scale <- 1-diag(rep(1,u))
+  #Y <- cbind(Y,1)
+  zero_matrix <- array(0,c(u,u))
+  #Z <- cbind(Z,0)
+  #zero_matrix[1,] <- 1
+  for(k in seq_len(K)){
+    temp <- NULL
+    for(l in seq_len(K)){
+      if(k==l){ temp <- cbind(temp,zero_matrix)}
+	  else{temp <- cbind(temp,contranominal_scale) }
+	}
+	context <- rbind(context,temp)
+	}
+	#if(FALSE){
+	#for(k in seq_len(K)){
+	#for(l in seq_len(K)[-k]){
+	#temp <- rep(0,u*K)
+	#temp[seq((k-1)*u+1, k*u)] <- 1
+	#temp[seq((l-1)*u+1, l*u)] <- 1
+	#X <- cbind(X,temp)}}
+	#}
+	context <- rbind(context,0)
+	context <- cbind(context,rbind(1-diag(rep(1,nrow(context)-1)),1))
+return(cbind(context,1-context))}
+
+print_crosstable <- function(context){
+A <- array("",dim(context))
+colnames(A) <- as.character(seq_len(ncol(context)))
+rownames(A) <- as.character(seq_len(nrow(context)))
+A[which(context==1)] <- "x"
+print.noquote(A)
+#pander(A, style = "grid", top.names = NULL, left.names = NULL)
+
+}
+
+fix_fca <- function(mat) {
+  # Requires shiny
+  if (!requireNamespace("shiny", quietly = TRUE)) {
+    stop("Please install the 'shiny' package first: install.packages('shiny')")
+  }
+
+  # Check input
+  if (!is.matrix(mat) || !is.numeric(mat)) {
+    stop("'mat' must be a numeric matrix")
+  }
+
+  # Make a copy of the matrix
+  edited_mat <- mat
+
+  # Convert to X / blank representation
+  values <- ifelse(edited_mat == 1, "X", "")
+
+  # Unique ID for the table
+  table_id <- paste0("fca_", sample(1e8, 1))
+
+  # UI
+  ui <- shiny::fluidPage(
+    shiny::tags$head(
+      shiny::tags$style(shiny::HTML("
+        body {
+          margin: 10px;
+          font-family: sans-serif;
+        }
+
+        table {
+          border-collapse: collapse;
+          table-layout: fixed;
+        }
+
+        th, td {
+          border: 1px solid #999;
+          padding: 0;
+          text-align: center;
+          width: 28px;
+          min-width: 28px;
+          max-width: 28px;
+          height: 28px;
+          cursor: pointer;
+          user-select: none;
+        }
+
+        th {
+          background: #eeeeee;
+          cursor: default;
+          font-weight: normal;
+          overflow: hidden;
+          white-space: nowrap;
+        }
+
+        td:hover {
+          background: #dceeff;
+        }
+
+        td.x-cell {
+          background: #ffffff;
+          color: #000000;
+          font-weight: bold;
+        }
+
+        td.empty-cell {
+          background: #ffffff;
+        }
+
+        .row-label {
+          width: 100px;
+          min-width: 100px;
+          max-width: 100px;
+          text-align: right;
+          padding-right: 6px;
+          background: #eeeeee;
+          cursor: default;
+        }
+
+        #done {
+          margin-top: 15px;
+          margin-right: 10px;
+        }
+
+        #cancel {
+          margin-top: 15px;
+        }
+      ")),
+      
+      shiny::tags$script(shiny::HTML("
+        $(document).on('click', '.fca-cell', function() {
+          var cell = $(this);
+          var row = cell.data('row');
+          var col = cell.data('col');
+
+          var isX = cell.hasClass('x-cell');
+
+          if (isX) {
+            cell.removeClass('x-cell');
+            cell.addClass('empty-cell');
+            cell.text('');
+          } else {
+            cell.removeClass('empty-cell');
+            cell.addClass('x-cell');
+            cell.text('X');
+          }
+
+          Shiny.setInputValue(
+            'cell_change',
+            {
+              row: row,
+              col: col,
+              value: !isX,
+              nonce: Math.random()
+            },
+            {priority: 'event'}
+          );
+        });
+      "))
+    ),
+
+    shiny::h4("FCA matrix editor"),
+    shiny::p("Click a cell to toggle X / blank."),
+
+    shiny::uiOutput(table_id),
+
+    shiny::actionButton("done", "Done"),
+    shiny::actionButton("cancel", "Cancel")
+  )
+
+  # Server
+  server <- function(input, output, session) {
+
+    current <- shiny::reactiveVal(values)
+
+    # Create the table
+    output[[table_id]] <- shiny::renderUI({
+
+      x <- current()
+
+      # Header
+      header <- shiny::tags$tr(
+        shiny::tags$th(class = "row-label", ""),
+        lapply(seq_len(ncol(x)), function(j) {
+          shiny::tags$th(colnames(mat)[j] %||% j)
+        })
+      )
+
+      # Rows
+      rows <- lapply(seq_len(nrow(x)), function(i) {
+
+        cells <- lapply(seq_len(ncol(x)), function(j) {
+
+          cls <- if (x[i, j] == "X") {
+            "fca-cell x-cell"
+          } else {
+            "fca-cell empty-cell"
+          }
+
+          shiny::tags$td(
+            class = cls,
+            `data-row` = i,
+            `data-col` = j,
+            x[i, j]
+          )
+        })
+
+        shiny::tags$tr(
+          shiny::tags$th(
+            class = "row-label",
+            rownames(mat)[i] %||% i
+          ),
+          cells
+        )
+      })
+
+      shiny::tags$table(
+        header,
+        rows
+      )
+    })
+
+    # Update a cell when clicked
+    shiny::observeEvent(input$cell_change, {
+
+      event <- input$cell_change
+      x <- current()
+
+      x[event$row, event$col] <-
+        if (isTRUE(event$value)) "X" else ""
+
+      current(x)
+    })
+
+    # Finish editing
+    shiny::observeEvent(input$done, {
+
+      x <- current()
+
+      result <- matrix(
+        0,
+        nrow = nrow(mat),
+        ncol = ncol(mat),
+        dimnames = dimnames(mat)
+      )
+
+      result[x == "X"] <- 1
+
+      session$userData$result <- result
+
+      shiny::stopApp(result)
+    })
+
+    # Cancel
+    shiny::observeEvent(input$cancel, {
+      shiny::stopApp(NULL)
+    })
+  }
+
+  # Helper for NULL values
+  `%||%` <- function(x, y) {
+    if (is.null(x) || is.na(x) || x == "") y else x
+  }
+
+  # Launch editor
+  result <- shiny::runApp(
+    shiny::shinyApp(ui = ui, server = server),
+    display.mode = "normal"
+  )
+
+  # Return original matrix if cancelled
+  if (is.null(result)) {
+    return(mat)
+  }
+
+  result
+}
+
+hull <- function(indexs,context){
+
+  extent <- rep(0,nrow(context))
+  extent[indexs] <- 1
+  extent <-oofos:::compute_phi(oofos:::compute_psi(extent,context),context)
+  return(setdiff(which(extent==1),indexs)) 
 }

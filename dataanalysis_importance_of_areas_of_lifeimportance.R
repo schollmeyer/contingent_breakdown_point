@@ -111,7 +111,7 @@ lines(ages,condmed,col="grey")
 lines(ages,cbp_univariate,col="blue")
 points(df$age,df$li02,col="grey")
 abline(h=0.5,lty=2,col="grey")
-df_univariate <- data.frame(age=ages,conditional_mean=condmean,conditional_median=condmed,contingent_breakdown_point=cbp_univariate,occupation_and_work= df$li02)
+df_univariate <- data.frame(age=ages,conditional_mean=condmean,conditional_median=condmed,contingent_breakdown_point=cbp_univariate,occupation_and_work= df$li0)
 
 
 ### ggplot2:
